@@ -10,44 +10,7 @@ from foros.responder import (
 )
 
 
-# -----------------------------------------------------------
-# Abrir el foro de una fase
-# -----------------------------------------------------------
-
-def abrir_foro(page: Page, fase: int) -> Page:
-
-    print("\n📂 Abriendo Momento intermedio...")
-
-    try:
-        page.get_by_role(
-            "button",
-            name=re.compile("Momento intermedio", re.I)
-        ).click()
-
-        page.wait_for_timeout(1000)
-
-    except Exception:
-        print("ℹ Momento intermedio ya estaba expandido.")
-
-    print(f"\n📂 Abriendo Fase {fase}...")
-
-    try:
-
-        boton = page.get_by_role(
-            "button",
-            name=re.compile(fr"Fase {fase}", re.I)
-        )
-
-        boton.scroll_into_view_if_needed()
-
-        page.wait_for_timeout(500)
-
-        boton.click(force=True)
-
-        page.wait_for_timeout(1500)
-
-    except Exception:
-        print(f"ℹ Fase {fase} ya estaba expandida.")
+def abrir_enlace_foro(page: Page, fase: int):
 
     print("🔎 Buscando el foro...")
 
@@ -80,31 +43,101 @@ def abrir_foro(page: Page, fase: int) -> Page:
 
                 link.click(force=True)
 
-                page.wait_for_load_state("domcontentloaded")
+                page.wait_for_load_state(
+                    "domcontentloaded"
+                )
 
                 page.wait_for_timeout(2000)
 
+                print("🔎 Esperando combo de grupos...")
+
+                page.locator(
+                    "select[name='group']"
+                ).wait_for(
+                    state="visible",
+                    timeout=30000
+                )
+
                 print("✅ Foro abierto correctamente.")
 
-                return page
+                return
 
         except Exception:
             continue
 
-    raise Exception(f"No se encontró el foro de la Fase {fase}")
+    raise Exception(
+        f"No se encontró el foro de la Fase {fase}"
+    )
 
 
-# -----------------------------------------------------------
-# Obtener grupos
-# -----------------------------------------------------------
+def abrir_foro(page: Page, fase: int) -> Page:
+
+    print("\n📂 Abriendo Momento intermedio...")
+
+    try:
+
+        page.get_by_role(
+            "button",
+            name=re.compile(
+                "Momento intermedio",
+                re.I
+            )
+        ).click()
+
+        page.wait_for_timeout(1000)
+
+    except Exception:
+
+        print(
+            "ℹ Momento intermedio ya estaba expandido."
+        )
+
+    print(f"\n📂 Abriendo Fase {fase}...")
+
+    try:
+
+        boton = page.get_by_role(
+            "button",
+            name=re.compile(
+                fr"Fase {fase}",
+                re.I
+            )
+        )
+
+        boton.scroll_into_view_if_needed()
+
+        page.wait_for_timeout(500)
+
+        boton.click(force=True)
+
+        page.wait_for_timeout(1500)
+
+    except Exception:
+
+        print(
+            f"ℹ Fase {fase} ya estaba expandida."
+        )
+
+    abrir_enlace_foro(
+        page,
+        fase
+    )
+
+    return page
+
 
 def listar_grupos(page: Page):
 
     print("\n📋 Obteniendo grupos...")
 
-    selector = page.locator("select[name='group']")
+    selector = page.locator(
+        "select[name='group']"
+    )
 
-    selector.wait_for()
+    selector.wait_for(
+        state="visible",
+        timeout=15000
+    )
 
     opciones = selector.locator("option")
 
@@ -123,37 +156,70 @@ def listar_grupos(page: Page):
             "nombre": opcion.inner_text().strip()
         })
 
-    print(f"✅ {len(grupos)} grupos encontrados.")
+    print(
+        f"✅ {len(grupos)} grupos encontrados."
+    )
 
     return grupos
 
 
-# -----------------------------------------------------------
-# Cambiar grupo
-# -----------------------------------------------------------
-
 def cambiar_grupo(page: Page, grupo):
 
-    print(f"\n➡ Cambiando a {grupo['nombre']}")
+    print(
+        f"\n➡ Cambiando a {grupo['nombre']}"
+    )
 
-    selector = page.locator("select[name='group']")
+    selector = page.locator(
+        "select[name='group']"
+    )
 
-    selector.select_option(grupo["id"])
+    selector.wait_for(
+        state="visible",
+        timeout=30000
+    )
 
-    page.wait_for_load_state("domcontentloaded")
+    print("✅ Combo de grupos disponible.")
+
+    selector.select_option(
+        grupo["id"],
+        timeout=15000
+    )
+
+    page.wait_for_load_state(
+        "domcontentloaded"
+    )
 
     page.wait_for_timeout(2000)
+
+    selector = page.locator(
+        "select[name='group']"
+    )
+
+    selector.wait_for(
+        state="visible",
+        timeout=15000
+    )
 
     actual = selector.locator(
         "option:checked"
     ).inner_text().strip()
 
-    print(f"Grupo actual: {actual}")
+    print(
+        f"Grupo actual: {actual}"
+    )
 
+    if actual != grupo["nombre"]:
 
-# -----------------------------------------------------------
-# Recorrer todos los grupos respondiendo
-# -----------------------------------------------------------
+        raise Exception(
+            f"El grupo seleccionado no coincide. "
+            f"Esperado: {grupo['nombre']} | "
+            f"Actual: {actual}"
+        )
+
+    print(
+        f"✅ Grupo cargado correctamente: {actual}"
+    )
+
 
 def recorrer_grupos_respondiendo(
     page: Page,
@@ -171,15 +237,23 @@ def recorrer_grupos_respondiendo(
     total_ok = 0
     total_error = 0
 
-    for indice, grupo in enumerate(grupos, start=1):
+    for indice, grupo in enumerate(
+        grupos,
+        start=1
+    ):
 
         print("\n-----------------------------------")
-        print(f"Grupo {indice}/{len(grupos)}")
+        print(
+            f"Grupo {indice}/{len(grupos)}"
+        )
         print("-----------------------------------")
 
         try:
 
-            cambiar_grupo(page, grupo)
+            cambiar_grupo(
+                page,
+                grupo
+            )
 
             abrir_discusion(
                 page,
@@ -191,41 +265,63 @@ def recorrer_grupos_respondiendo(
                 nombre_usuario
             )
 
-            abrir_editor_avanzado(page)
+            abrir_editor_avanzado(
+                page
+            )
 
             escribir_respuesta(
                 page,
                 mensaje
             )
 
-            print("⚠ MODO SEGURO: no se publicará el mensaje.")
+            print(
+                "⚠ MODO SEGURO: "
+                "no se publicará el mensaje."
+            )
 
             input(
                 "\nENTER para regresar al foro..."
             )
 
-            volver_al_foro(page)
+            volver_al_foro(
+                page
+            )
+
+            abrir_enlace_foro(
+                page,
+                fase=2
+            )
+
+            print(
+                "✅ Foro listo para el siguiente grupo."
+            )
 
             total_ok += 1
 
         except Exception as e:
 
-            print(f"❌ Error en {grupo['nombre']}")
+            print(
+                f"❌ Error en {grupo['nombre']}"
+            )
 
             print(e)
 
             total_error += 1
 
-            try:
-                page.go_back()
-                page.wait_for_timeout(1500)
-            except:
-                pass
-
     print("\n===================================")
     print("RECORRIDO FINALIZADO")
     print("===================================")
-    print(f"Grupos procesados : {len(grupos)}")
-    print(f"Correctos         : {total_ok}")
-    print(f"Con errores       : {total_error}")
+
+    print(
+        f"Grupos procesados : {len(grupos)}"
+    )
+
+    print(
+        f"Correctos         : {total_ok}"
+    )
+
+    print(
+        f"Con errores       : {total_error}"
+    )
+
     print("===================================")
