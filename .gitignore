@@ -1,0 +1,27 @@
+# Variables de entorno
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code
+.vscode/
+
+# Capturas
+capturas/
+
+# Logs
+*.log
+
+# Excel de resultados
+Resultados/
+*.xlsx
+
+# Playwright
+playwright-report/
+test-results/
+
+# Windows
+Thumbs.db
