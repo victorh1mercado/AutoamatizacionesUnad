@@ -14,9 +14,12 @@ def analizar_grupo(page: Page):
     print("   🔍 Analizando grupo...")
 
     # Buscar todas las filas de la tabla de discusiones
+    print("URL:", page.url)
+    print("Título:", page.locator("h1").inner_text())
     filas = page.locator("table tbody tr")
 
     total = filas.count()
+    print(f"Filas encontradas: {total}")
 
     resultado["discusiones"] = total
 

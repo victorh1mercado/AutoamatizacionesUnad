@@ -9,7 +9,6 @@ import re
 
 def abrir_discusion(page: Page, nombre_discusion: str):
 
-    print(f"\n📄 Buscando discusión: {nombre_discusion}")
 
     links = page.get_by_role("link")
 
@@ -23,17 +22,19 @@ def abrir_discusion(page: Page, nombre_discusion: str):
 
             if nombre_discusion.lower() in texto.lower():
 
-                print(f"✅ Discusión encontrada: {texto}")
 
                 link.scroll_into_view_if_needed()
 
                 page.wait_for_timeout(500)
 
+
                 link.click(force=True)
+                
 
                 page.wait_for_load_state("domcontentloaded")
 
                 page.wait_for_timeout(1500)
+               
 
                 return
 
@@ -49,13 +50,10 @@ def abrir_discusion(page: Page, nombre_discusion: str):
 
 def abrir_editor_respuesta(page: Page, nombre_usuario: str):
 
-    print("\n🔎 Buscando tu publicación...")
 
     menubars = page.get_by_role("menubar")
 
     total = menubars.count()
-
-    print(f"Menubars encontrados: {total}")
 
     for i in range(total):
 
@@ -65,7 +63,6 @@ def abrir_editor_respuesta(page: Page, nombre_usuario: str):
 
             aria = menu.get_attribute("aria-label") or ""
 
-            print(f"   {i+1}. {aria}")
 
             # Ignorar respuestas
             if aria.startswith("Re:"):
@@ -75,7 +72,6 @@ def abrir_editor_respuesta(page: Page, nombre_usuario: str):
 
             if aria.strip() == esperado:
 
-                print("✅ Publicación encontrada.")
 
                 boton = menu.get_by_role(
                     "menuitem",
@@ -90,7 +86,6 @@ def abrir_editor_respuesta(page: Page, nombre_usuario: str):
 
                 page.wait_for_timeout(1500)
 
-                print("✅ Editor abierto.")
 
                 return
 
@@ -106,7 +101,6 @@ def abrir_editor_respuesta(page: Page, nombre_usuario: str):
 
 def abrir_editor_avanzado(page: Page):
 
-    print("📝 Abriendo editor avanzado...")
 
     page.get_by_role(
         "button",
@@ -115,7 +109,6 @@ def abrir_editor_avanzado(page: Page):
 
     page.wait_for_timeout(2000)
 
-    print("✅ Editor avanzado abierto.")
 
 
 # ----------------------------------------------------------
@@ -124,13 +117,11 @@ def abrir_editor_avanzado(page: Page):
 
 def escribir_respuesta(page: Page, ruta_html: str):
 
-    print("📄 Leyendo plantilla HTML...")
 
     html = Path(ruta_html).read_text(
         encoding="utf-8"
     )
 
-    print("📝 Abriendo editor HTML...")
 
     page.locator(".tox-tbtn").first.click()
 
@@ -149,8 +140,6 @@ def escribir_respuesta(page: Page, ruta_html: str):
 
     cuadro.fill(html)
 
-    print("💾 Guardando HTML...")
-
     dialogo.get_by_role(
         "button",
         name="Guardar"
@@ -158,7 +147,6 @@ def escribir_respuesta(page: Page, ruta_html: str):
 
     page.wait_for_timeout(1500)
 
-    print("✅ HTML cargado correctamente.")
 
 
 # ----------------------------------------------------------
@@ -167,18 +155,34 @@ def escribir_respuesta(page: Page, ruta_html: str):
 
 def enviar_respuesta(page: Page):
 
-    print("📤 Enviando publicación...")
+    print("📤 Publicando respuesta...")
 
-    page.get_by_role(
+    boton = page.get_by_role(
         "button",
         name="Enviar al foro"
-    ).click(force=True)
+    )
+
+    boton.click(force=True)
 
     page.wait_for_load_state("domcontentloaded")
 
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(4000)
 
-    print("✅ Publicación enviada.")
+    # Esperar a que desaparezca el botón de envío
+    try:
+
+        boton.wait_for(
+            state="detached",
+            timeout=10000
+        )
+
+    except Exception:
+        pass
+
+    url_publicacion = page.url
+
+
+    return url_publicacion
 
 
 # ----------------------------------------------------------
@@ -187,12 +191,6 @@ def enviar_respuesta(page: Page):
 
 def volver_al_foro(page: Page):
 
-    print("↩ Regresando al foro...")
-
-    page.go_back()
-
-    page.wait_for_load_state("domcontentloaded")
+    page.go_back(wait_until="domcontentloaded")
 
     page.wait_for_timeout(2000)
-
-    print("✅ Regresó al foro.")

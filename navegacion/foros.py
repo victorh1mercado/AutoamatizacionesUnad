@@ -6,19 +6,27 @@ from foros.responder import (
     abrir_editor_respuesta,
     abrir_editor_avanzado,
     escribir_respuesta,
-    volver_al_foro
+    volver_al_foro,
+    enviar_respuesta
 )
+from reportes.excelForos import (
+    crear_reporte,
+    registrar_grupo
+)
+from config import (
+    MODO
+)
+from herramientas.logger import log
+
 
 
 def abrir_enlace_foro(page: Page, fase: int):
 
-    print("🔎 Buscando el foro...")
 
     links = page.get_by_role("link")
 
     total = links.count()
 
-    print(f"Links encontrados: {total}")
 
     for i in range(total):
 
@@ -33,13 +41,11 @@ def abrir_enlace_foro(page: Page, fase: int):
                 and f"Fase {fase}" in texto
             ):
 
-                print(f"✅ Encontrado: {texto}")
 
                 link.scroll_into_view_if_needed()
 
                 page.wait_for_timeout(500)
 
-                print("➡ Haciendo clic en el foro...")
 
                 link.click(force=True)
 
@@ -49,7 +55,6 @@ def abrir_enlace_foro(page: Page, fase: int):
 
                 page.wait_for_timeout(2000)
 
-                print("🔎 Esperando combo de grupos...")
 
                 page.locator(
                     "select[name='group']"
@@ -58,7 +63,6 @@ def abrir_enlace_foro(page: Page, fase: int):
                     timeout=30000
                 )
 
-                print("✅ Foro abierto correctamente.")
 
                 return
 
@@ -72,7 +76,7 @@ def abrir_enlace_foro(page: Page, fase: int):
 
 def abrir_foro(page: Page, fase: int) -> Page:
 
-    print("\n📂 Abriendo Momento intermedio...")
+    log("\n📂 Abriendo Momento intermedio...")
 
     try:
 
@@ -88,11 +92,11 @@ def abrir_foro(page: Page, fase: int) -> Page:
 
     except Exception:
 
-        print(
+        log(
             "ℹ Momento intermedio ya estaba expandido."
         )
 
-    print(f"\n📂 Abriendo Fase {fase}...")
+    log(f"\n📂 Abriendo Fase {fase}...")
 
     try:
 
@@ -114,7 +118,7 @@ def abrir_foro(page: Page, fase: int) -> Page:
 
     except Exception:
 
-        print(
+        log(
             f"ℹ Fase {fase} ya estaba expandida."
         )
 
@@ -128,7 +132,7 @@ def abrir_foro(page: Page, fase: int) -> Page:
 
 def listar_grupos(page: Page):
 
-    print("\n📋 Obteniendo grupos...")
+    log("\n📋 Obteniendo grupos...")
 
     selector = page.locator(
         "select[name='group']"
@@ -145,7 +149,6 @@ def listar_grupos(page: Page):
 
     total = opciones.count()
 
-    print(f"Total grupos: {total}")
 
     for i in range(total):
 
@@ -156,7 +159,7 @@ def listar_grupos(page: Page):
             "nombre": opcion.inner_text().strip()
         })
 
-    print(
+    log(
         f"✅ {len(grupos)} grupos encontrados."
     )
 
@@ -165,9 +168,7 @@ def listar_grupos(page: Page):
 
 def cambiar_grupo(page: Page, grupo):
 
-    print(
-        f"\n➡ Cambiando a {grupo['nombre']}"
-    )
+    
 
     selector = page.locator(
         "select[name='group']"
@@ -178,18 +179,21 @@ def cambiar_grupo(page: Page, grupo):
         timeout=30000
     )
 
-    print("✅ Combo de grupos disponible.")
 
     selector.select_option(
         grupo["id"],
         timeout=15000
     )
 
-    page.wait_for_load_state(
-        "domcontentloaded"
-    )
+    
+    selector.dispatch_event("change")
 
-    page.wait_for_timeout(2000)
+    # Enviar únicamente el formulario del selector de grupos
+    page.locator("#selectgroup").evaluate("f => f.submit()")
+
+    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(3000)
+
 
     selector = page.locator(
         "select[name='group']"
@@ -204,9 +208,7 @@ def cambiar_grupo(page: Page, grupo):
         "option:checked"
     ).inner_text().strip()
 
-    print(
-        f"Grupo actual: {actual}"
-    )
+   
 
     if actual != grupo["nombre"]:
 
@@ -216,11 +218,9 @@ def cambiar_grupo(page: Page, grupo):
             f"Actual: {actual}"
         )
 
-    print(
-        f"✅ Grupo cargado correctamente: {actual}"
-    )
+    
 
-
+    
 def recorrer_grupos_respondiendo(
     page: Page,
     nombre_discusion: str,
@@ -230,23 +230,25 @@ def recorrer_grupos_respondiendo(
 
     grupos = listar_grupos(page)
 
+    crear_reporte()
+
     print("\n===================================")
     print("INICIANDO RECORRIDO DE GRUPOS")
     print("===================================")
 
     total_ok = 0
     total_error = 0
+    if MODO == 0:
+        log("📝 MODO: SIMULACIÓN (no se publicarán respuestas)")
+    else:
+        log("🚀 MODO: PRODUCCIÓN")
 
     for indice, grupo in enumerate(
         grupos,
         start=1
     ):
 
-        print("\n-----------------------------------")
-        print(
-            f"Grupo {indice}/{len(grupos)}"
-        )
-        print("-----------------------------------")
+        log(f"\n[{indice}/{len(grupos)}] 📂 {grupo['nombre']}")
 
         try:
 
@@ -274,14 +276,10 @@ def recorrer_grupos_respondiendo(
                 mensaje
             )
 
-            print(
-                "⚠ MODO SEGURO: "
-                "no se publicará el mensaje."
-            )
+            url_publicacion = ""
 
-            input(
-                "\nENTER para regresar al foro..."
-            )
+            if MODO == 1:
+               url_publicacion = enviar_respuesta(page)
 
             volver_al_foro(
                 page
@@ -292,19 +290,22 @@ def recorrer_grupos_respondiendo(
                 fase=2
             )
 
-            print(
-                "✅ Foro listo para el siguiente grupo."
+            registrar_grupo(
+                grupo=grupo["nombre"],
+                discusion=nombre_discusion,
+                estado="PUBLICADO" if MODO == 1 else "SIMULADO",
+                observacion="Publicado correctamente" if MODO == 1 else "HTML cargado correctamente",
+                url=url_publicacion if MODO == 1 else ""
             )
+
+            print("✔ Grupo completado")
 
             total_ok += 1
 
         except Exception as e:
 
-            print(
-                f"❌ Error en {grupo['nombre']}"
-            )
-
-            print(e)
+            print(f"❌ {grupo['nombre']}")
+            print(f"   {e}")    
 
             total_error += 1
 
