@@ -8,7 +8,7 @@ from config import CURSO
 
 
 # Ruta de la plantilla HTML
-PLANTILLA_HTML = "PlantillasMensajeForos/PublicacionOvaFase2.html"
+PLANTILLA_HTML = "PlantillasMensajeForos/PublicacionCierreFase2.html"
 # Si tu archivo realmente se llama diferente, coloca aquí el nombre exacto.
 
 
