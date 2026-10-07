@@ -1,107 +1,185 @@
-from playwright.sync_api import Page
-print(">>> ANALIZADOR IMPORTADO <<<")
+from datetime import datetime, timezone
 
-def analizar_grupo(page: Page):
+LIMITE_HORAS = 24
 
-    resultado = {
-        "discusiones": 0,
-        "interacciones": 0,
-        "por_leer": 0,
-        "requiere_revision": False,
-        "detalle": []
-    }
 
-    print("   🔍 Analizando grupo...")
+def analizar_publicaciones(publicaciones, nombre_usuario):
 
-    # Buscar todas las filas de la tabla de discusiones
-    print("URL:", page.url)
-    print("Título:", page.locator("h1").inner_text())
-    filas = page.locator("table tbody tr")
+    publicaciones = sorted(
+        publicaciones,
+        key=lambda p: p["fecha"] or datetime.min.replace(tzinfo=timezone.utc)
+    )
 
-    total = filas.count()
-    print(f"Filas encontradas: {total}")
+    ahora = datetime.now(timezone.utc).astimezone()
 
-    resultado["discusiones"] = total
+    resultado = []
 
-    if total == 0:
+    tiempos_respuesta = []
 
-        print("   📭 Sin discusiones.")
+    pendientes = 0
 
-        return resultado
+    vencidas = 0
 
-    print(f"   💬 {total} discusión(es) encontrada(s).")
+    for post in publicaciones:
 
-    for i in range(total):
-
-        fila = filas.nth(i)
-
-        columnas = fila.locator("td")
-
-        if columnas.count() < 5:
+        # Solo analizar publicaciones de estudiantes
+        if post["es_mio"]:
             continue
 
-        try:
+        respondido = False
+        tiempo_respuesta = None
+        fecha_respuesta = None
+        respondio = ""
 
-            titulo = columnas.nth(0).inner_text().strip()
+        autor_post = post["autor"].strip().upper()
 
-        except:
+        # Buscar cualquier respuesta del tutor posterior
+        for siguiente in publicaciones:
 
-            titulo = ""
+            if not siguiente["es_mio"]:
+                continue
 
-        try:
+            if (
+                post["fecha"] is not None and
+                siguiente["fecha"] is not None and
+                siguiente["fecha"] <= post["fecha"]
+            ):
+                continue
 
-            autor = columnas.nth(1).inner_text().strip()
+            respuesta = (
+                siguiente.get("respuesta_a") or ""
+            ).strip().upper()
 
-        except:
+            if autor_post == respuesta:
 
-            autor = ""
+                respondido = True
 
-        try:
+                respondio = siguiente["autor"]
 
-            respuestas = int(columnas.nth(3).inner_text().strip())
+                fecha_respuesta = siguiente["fecha"]
 
-        except:
+                if (
+                    post["fecha"] is not None and
+                    siguiente["fecha"] is not None
+                ):
 
-            respuestas = 0
+                    tiempo = (
+                        siguiente["fecha"] -
+                        post["fecha"]
+                    )
 
-        try:
+                    tiempo_respuesta = round(
+                        tiempo.total_seconds() / 3600,
+                        2
+                    )
 
-            ultima = columnas.nth(4).inner_text().strip()
+                    tiempos_respuesta.append(
+                        tiempo_respuesta
+                    )
 
-        except:
+                break
 
-            ultima = ""
+        horas_transcurridas = None
 
-        # Buscar indicador "por leer"
+        if post["fecha"] is not None:
 
-        texto = fila.inner_text().lower()
+            horas_transcurridas = round(
+                (
+                    ahora -
+                    post["fecha"]
+                ).total_seconds() / 3600,
+                2
+            )
 
-        pendientes = 0
+        requiere = not respondido
 
-        if "por leer" in texto:
+        vencido = False
 
-            import re
+        prioridad = "OK"
 
-            m = re.search(r"(\d+)\s+por leer", texto)
+        motivo = ""
 
-            if m:
+        if requiere:
 
-                pendientes = int(m.group(1))
+            pendientes += 1
 
-        resultado["interacciones"] += respuestas
+            if horas_transcurridas is not None:
 
-        resultado["por_leer"] += pendientes
+                if horas_transcurridas >= LIMITE_HORAS:
 
-        resultado["detalle"].append({
+                    vencido = True
+                    vencidas += 1
+                    prioridad = "ALTA"
+                    motivo = "Sin responder - vencida"
 
-            "titulo": titulo,
-            "autor": autor,
-            "respuestas": respuestas,
-            "por_leer": pendientes,
-            "ultima_publicacion": ultima
+                elif horas_transcurridas >= 18:
+
+                    prioridad = "MEDIA"
+                    motivo = "Sin responder"
+
+                else:
+
+                    prioridad = "BAJA"
+                    motivo = "Sin responder"
+
+        else:
+
+            motivo = "Respondida"
+
+        resultado.append({
+
+            "id": post["id"],
+
+            "autor": post["autor"],
+
+            "fecha": post["fecha"],
+
+            "asunto": post["asunto"],
+
+            "contenido": post["contenido"],
+
+            "respuesta_a": post["respuesta_a"],
+
+            "respondido": respondido,
+
+            "respondio": respondio,
+
+            "fecha_respuesta": fecha_respuesta,
+
+            "requiere_respuesta": requiere,
+
+            "horas_transcurridas": horas_transcurridas,
+
+            "tiempo_respuesta": tiempo_respuesta,
+
+            "vencido": vencido,
+
+            "prioridad": prioridad,
+
+            "motivo": motivo
 
         })
 
-    resultado["requiere_revision"] = resultado["por_leer"] > 0
+    promedio = 0
 
-    return resultado
+    if tiempos_respuesta:
+
+        promedio = round(
+            sum(tiempos_respuesta) /
+            len(tiempos_respuesta),
+            2
+        )
+
+    return {
+
+        "publicaciones": resultado,
+
+        "total_publicaciones": len(resultado),
+
+        "pendientes": pendientes,
+
+        "vencidas": vencidas,
+
+        "promedio_respuesta": promedio
+
+    }
